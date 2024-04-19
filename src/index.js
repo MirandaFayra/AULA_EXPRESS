@@ -1,6 +1,7 @@
 //---------- CONFIG BASICAS ------
 import express from 'express'
 import cors from 'cors'
+import bcrypt from 'bcrypt'
 
 const app = express()
 
@@ -21,6 +22,8 @@ nome,preco, qtdPromocao
 
 let viagens =[]
 let proximaViagem = 1
+let admins = []
+let proximaAdmin = 1
 
 
 //-------- POST - CREATE ------------- 
@@ -62,7 +65,6 @@ app.post('/viagens',(request,response)=>{
 
 })
 
-
 //-------- GET - READ -------------
 
 // http://localhost:3333/viagens
@@ -72,7 +74,7 @@ app.get('/viagens',(request,response)=>{
         response.status(400).send('Não existe nenhuma viagem cadastrada. Crie uma nova viagem')
     }
 
-    const dadosMapeados = viagens.map((viagem)=> `As viagens são : ${viagem.nomeViagem} | Preço R$ ${viagem.precoDaViagem} | Quantidade em Promoção : ${viagem.qtdPromocao}`)
+    const dadosMapeados = viagens.map((viagem)=> `As viagens são : ${viagem.nomeViagem} | Preço R$ ${viagem.precoDaViagem} | Quantidade em Promoção : ${viagem.qtdPromocao} | Id: ${viagem.id}`)
 
     response.status(200).send(dadosMapeados)
 
@@ -133,8 +135,127 @@ app.put("/viagens/:idBuscado", (request, response) => {
         })
       )
     }
-  })
-  
+})
+
+//-------- DELETE - DELETAR -------------
+
+// http://localhost:3333/viagens/:idBuscado
+app.delete('/viagens/:idBuscado',(request,response)=>{
+  const idBuscado = Number(request.params.idBuscado)
+
+  if(!idBuscado){
+    response
+        .status(400)
+        .send(JSON.stringify({ Mensagem: "Favor enviar um ID válido" }))
+  }
+
+  const posicaoDoElementoPorId = viagens.findIndex(viagem => viagem.id === idBuscado)
+
+  if(posicaoDoElementoPorId  === -1){
+    response
+        .status(400)
+        .send(JSON.stringify({ Mensagem: "Id não encontrado" }))
+  }else{
+    //Array.splice(posicao, qtd,add)
+    viagens.splice(posicaoDoElementoPorId ,1)
+    response
+    .status(200)
+    .send(JSON.stringify({ Mensagem: "Viagem deletada com sucesso" }))
+  }
+
+})
+
+
+//-------- SIGNUP - CRIAR PESSOA ADM -------------
+
+// http://localhost:3333/signup
+app.post('/signup',async (request,response)=>{
+
+  const data = request.body
+
+  const email = data.email
+  const senhaDigitada = data.senhaDigitada
+
+  if(!email){
+    response
+    .status(400)
+    .send(JSON.stringify({ Mensagem: "Favor inserir um email válido" }))
+  }
+
+  if(!senhaDigitada){
+    response
+    .status(400)
+    .send(JSON.stringify({ Mensagem: "Favor inserir uma senha válida" }))
+  }
+
+  const verificarEmail = admins.find((admin)=> admin.email === email)
+
+  if(verificarEmail){
+    response
+    .status(400)
+    .send(JSON.stringify({ Mensagem: "Email já cadastrado no nosso banco de dados" }))
+  }
+
+  // Criptografa a senha que será digitada
+  const senhaCriptografada = await bcrypt.hash(senhaDigitada,10)
+
+  //console.log('Senha digitada',senhaDigitada)
+  //console.log('Senha criptografada',senhaCriptografada)
+
+  let novaPessoaAdministradora ={
+    id : proximaAdmin,
+    email : data.email, 
+    senhaDigitada :senhaCriptografada
+  }
+
+  admins.push(novaPessoaAdministradora)
+
+  proximaAdmin++
+
+  response
+    .status(201)
+    .send(JSON.stringify({ Mensagem: `Pessoa administradora de email ${email}, cadastrada com sucesso!` }))
+
+})
+
+
+//-------- LOGIN - FAZER O LOGIN -------------
+
+app.post('/login',async(request,response)=>{
+  const data = request.body 
+
+  const email = data.email 
+  const senha = data.senha
+
+  if(!email){
+    response
+    .status(400)
+    .send(JSON.stringify({ Mensagem: "Favor inserir um email válido" }))
+  }
+
+  if(!senha){
+    response
+    .status(400)
+    .send(JSON.stringify({ Mensagem: "Favor inserir uma senha válida" }))
+  }
+
+
+  const admin = admins.find(admin =>admin.email === email)
+
+  //Login, precisa comparar a senha digitada com a criptografada. USA O COMPARE
+  const senhaMatch = await bcrypt.compare(senha, admin.senhaDigitada)
+
+  if(!senhaMatch){
+    response
+    .status(400)
+    .send(JSON.stringify({ Mensagem: "Senha não encontrada em nosso banco.Credencial inválida" }))
+  }
+
+
+  response.status(200).send(JSON.stringify({ Mensagem: `Pessoa com email ${email}, foi logada com sucesso! Seja Bem-vinde!` }))
+
+})
+ 
 
 //---------------- VERIFICAR PORTA ---------
 app.listen(3333,()=> console.log('Servidor rodando na porta 3333'))
